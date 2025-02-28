@@ -64,7 +64,7 @@ exports.getTasksById = async (req, res) => {
         console.log("Task found:", task);
         res.status(200).json(task);
     } catch (error) {
-        console.error("Error fetching task by ID:", error.stack); // Log full error stack
+        console.error("Error fetching task by ID:", error.stack); 
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
