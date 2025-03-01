@@ -24,7 +24,6 @@ router.delete("/:id",deleteTask);
  *       200:
  *         description: Successfully fetched tasks.
  */
-router.get("/", getTasks);
 
 /**
  * @swagger
@@ -46,8 +45,6 @@ router.get("/", getTasks);
  *       201:
  *         description: Task added successfully.
  */
-router.post("/", addTask);
-
 /**
  * @swagger
  * /api/v1/tasks/{id}:
@@ -78,7 +75,6 @@ router.post("/", addTask);
  *       200:
  *         description: Task updated successfully.
  */
-router.put("/:id", updateTask);
 
 /**
  * @swagger
@@ -97,6 +93,5 @@ router.put("/:id", updateTask);
  *       200:
  *         description: Task deleted successfully.
  */
-router.delete("/:id", deleteTask);
 
 module.exports = router;
