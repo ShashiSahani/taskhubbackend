@@ -12,66 +12,91 @@ router.post("/",createTask);
 router.put("/:id",updateTask);
 router.delete("/:id",deleteTask);
 
-module.exports=router;
+
+
 /**
  * @swagger
- * /tasks:
+ * /api/v1/tasks:
  *   get:
  *     summary: Get all tasks
+ *     description: Fetch all tasks from the database.
  *     responses:
  *       200:
- *         description: List of tasks
+ *         description: Successfully fetched tasks.
  */
+router.get("/", getTasks);
 
 /**
  * @swagger
- * /tasks:
+ * /api/v1/tasks:
  *   post:
  *     summary: Add a new task
- *     parameters:
- *       - in: body
- *         name: task
- *         description: Task data
- *         schema:
- *           type: object
- *           required:
- *             - text
- *           properties:
- *             text:
- *               type: string
+ *     description: Creates a new task with the provided text.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 example: "Learn Swagger"
  *     responses:
  *       201:
- *         description: Task created successfully
+ *         description: Task added successfully.
  */
+router.post("/", addTask);
 
 /**
  * @swagger
- * /tasks/{id}:
+ * /api/v1/tasks/{id}:
  *   put:
  *     summary: Update a task
+ *     description: Modify an existing task.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
+ *         description: Task ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 example: "Updated Task"
+ *               completed:
+ *                 type: boolean
+ *                 example: true
  *     responses:
  *       200:
- *         description: Task updated successfully
+ *         description: Task updated successfully.
  */
+router.put("/:id", updateTask);
 
 /**
  * @swagger
- * /tasks/{id}:
+ * /api/v1/tasks/{id}:
  *   delete:
  *     summary: Delete a task
+ *     description: Removes a task by ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
+ *         description: Task ID
  *     responses:
  *       200:
- *         description: Task deleted successfully
+ *         description: Task deleted successfully.
  */
+router.delete("/:id", deleteTask);
+
+module.exports = router;

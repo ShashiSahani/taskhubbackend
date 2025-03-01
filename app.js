@@ -5,6 +5,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const dotenv = require("dotenv");
 const connectDB = require('./db');
+const { swaggerUi, swaggerDocs } = require("./swagger");
 const blogRoutes = require('./routes/blogs/blogRoutes');
 const authRoutes = require('./routes/auth/authRoutes');
 const taskRoutes = require('./routes/tasks/taskRoutes');
@@ -23,7 +24,7 @@ app.get('/', (req, res) => {
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/blogs', blogRoutes);
 app.use('/api/v1/auth', authRoutes);
-
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 connectDB();
 app.use((err, req, res, next) => {
