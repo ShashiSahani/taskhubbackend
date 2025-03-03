@@ -12,20 +12,28 @@ const convertImageToBase64=(filePath)=>{
     throw new Error("Error converting image to base64")
   }
 }
+
+
+//add blogs using form-data
 exports.createBlog = async (req, res) => {
   try {
-    const { title, description, author } = req.body;
-    if (!title || !description || !author || !req.file) {
-      return res.status(400).json({ message: "All fields are required and image must be in Base64 format" });
+    const { title, description, author, category, tags } = req.body;
+
+    if (!title || !description || !author || !category || !tags || !req.file) {
+      return res.status(400).json({ message: "All fields are required, including category and image." });
     }
 
-const imageBase64=convertImageToBase64(req.file.path)
+    const imageBase64 = convertImageToBase64(req.file.path);
+
     const newBlog = new Blog({
       title,
       description,
       author,
-      image:imageBase64,
+      category, // ✅ Ensure category is being saved
+      tags: Array.isArray(tags) ? tags : tags.split(","), // ✅ Convert tags into an array if necessary
+      image: imageBase64,
     });
+
     await newBlog.save();
     res.status(201).json({
       success: true,
@@ -40,6 +48,8 @@ const imageBase64=convertImageToBase64(req.file.path)
     });
   }
 };
+
+
 
 exports.getAllBlogs = async (req, res) => {
   try {
@@ -136,3 +146,76 @@ exports.deleteBlog = async (req, res) => {
         res.status(500).json({ success: false, message: "Error deleting blog", error: error.message });
     }
 };
+
+
+
+exports.getSimilarBlogs = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) return res.status(404).json({ message: "Blog not found!" });
+
+    const similarBlogs = await Blog.find({
+      _id: { $ne: blog._id },
+      $or: [{ category: blog.category }, { tags: { $in: blog.tags } }],
+    }).limit(5);
+
+    res.status(200).json({ success: true, similarBlogs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error fetching similar blogs", error: error.message });
+  }
+};
+exports.likeBlog = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) return res.status(404).json({ message: "Blog not found!" });
+
+    if (!blog.likes.includes(req.user.id)) {
+      blog.likes.push(req.user.id);
+      blog.dislikes = blog.dislikes.filter((id) => id.toString() !== req.user.id);
+    }
+
+    await blog.save();
+    res.status(200).json({ success: true, message: "Liked the blog!", likes: blog.likes.length });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error liking blog", error: error.message });
+  }
+};
+exports.dislikeBlog = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) return res.status(404).json({ message: "Blog not found!" });
+
+    if (!blog.dislikes.includes(req.user.id)) {
+      blog.dislikes.push(req.user.id);
+      blog.likes = blog.likes.filter((id) => id.toString() !== req.user.id);
+    }
+
+    await blog.save();
+    res.status(200).json({ success: true, message: "Disliked the blog!", dislikes: blog.dislikes.length });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error disliking blog", error: error.message });
+  }
+};
+
+exports.addComment = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id); // Check if the ID exists
+    if (!blog) {
+      return res.status(404).json({ success: false, message: "Blog not found!" });
+    }
+
+    const { user, text } = req.body;
+    if (!user || !text) {
+      return res.status(400).json({ success: false, message: "User and text are required!" });
+    }
+
+    // Add comment to blog
+    blog.comments.push({ user, text, createdAt: new Date() });
+
+    await blog.save();
+    res.status(201).json({ success: true, message: "Comment added successfully!", blog });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error adding comment", error: error.message });
+  }
+};
+
