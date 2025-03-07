@@ -9,6 +9,7 @@ const { swaggerUi, swaggerDocs } = require("./swagger");
 const blogRoutes = require('./routes/blogs/blogRoutes');
 const authRoutes = require('./routes/auth/authRoutes');
 const taskRoutes = require('./routes/tasks/taskRoutes');
+const faqRoutes = require('./routes/faq/faqRoutes');
 dotenv.config();
 
 const app = express();
@@ -22,6 +23,7 @@ app.get('/', (req, res) => {
   res.send('Hello, welcome to my API!');
 });
 app.use('/api/v1/tasks', taskRoutes);
+app.use('/api/v1/faq', faqRoutes);
 app.use('/api/v1/blogs', blogRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
