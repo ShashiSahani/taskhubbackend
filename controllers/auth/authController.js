@@ -6,40 +6,31 @@ const { token } = require("morgan");
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, age, expiryDate } = req.body;
+    const profileImage = req.file ? req.file.path : null; 
 
-    // Get uploaded image filename
-    const image = req.file ? req.file.filename : null;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
-    // Check if user exists
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ message: "User already exists" });
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    user = new User({
+    const user = new User({
       name,
       email,
-      password: bcrypt.hashSync(password, 10),
-      image, // Save image filename
+      password: hashedPassword,
+      age,
+      profileImage,
+      expiryDate: new Date(expiryDate),
     });
 
     await user.save();
 
-    res.json({
-      success: true,
-      message: "User registered successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-      },
-    });
+    res.status(201).json({ message: 'User registered successfully', user });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: 'Registration failed', error: err.message });
   }
 };
+
 
 
 
