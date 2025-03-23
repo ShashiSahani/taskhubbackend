@@ -2,39 +2,100 @@ const User = require("../../models/user/userModel");
 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const cloudinary = require("../../config/cloudinary");
+
 const { token } = require("morgan");
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, age, expiryDate } = req.body;
-    const profileImage = req.file ? req.file.path : null;
-
+    const { name, email, password } = req.body;
     const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ message: "User already exists" });
+    if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      age,
-      profileImage,
-      expiryDate: new Date(expiryDate),
-    });
+    let profileImage = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, { folder: 'user_images' });
+      profileImage = result.secure_url;
+      fs.unlinkSync(req.file.path); // Remove file from server after upload
+    }
 
+    const user = new User({ name, email, password: hashedPassword, profileImage });
     await user.save();
 
-    res.status(201).json({
-      message: "User registered successfully",
-      user,
-    });
+    res.status(201).json({ message: 'User registered successfully', user });
   } catch (err) {
-    res.status(500).json({ message: "Registration failed", error: err.message });
+    res.status(500).json({ message: 'Registration failed', error: err.message });
   }
 };
 
+// Login User
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ message: 'Login successful', token, user });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Get All Users
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find();
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Get User by ID
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Update User
+exports.updateUser = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    if (req.file) {
+      // Delete the previous image from Cloudinary
+      if (user.profileImage) {
+        const publicId = user.profileImage.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`user_images/${publicId}`);
+      }
+      // Upload new image
+      const result = await cloudinary.uploader.upload(req.file.path, { folder: 'user_images' });
+      user.profileImage = result.secure_url;
+      fs.unlinkSync(req.file.path); // Remove file from server after upload
+    }
+
+    await user.save();
+    res.json({ message: 'User updated successfully', user });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
 
 
 
@@ -60,54 +121,7 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.getAllUsers = async (req, res) => {
-  try {
-    const users = await User.find();
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    const formattedUsers = users.map((user) => ({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      profileImage: user.profileImage
-        ? `${baseUrl}/${user.profileImage.replace("\\", "/")}`
-        : null,
-    }));
-
-    res.json({
-      success: true,
-      users: formattedUsers,
-    });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-exports.getUserById = async (req, res) => {
-  try {
-    const userId = req.params.id;
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-
-    res.json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        profileImage: user.profileImage
-          ? `${baseUrl}/${user.profileImage.replace("\\", "/")}`
-          : null,
-      },
-    });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
 
 
 exports.changePassword = async (req, res) => {
