@@ -51,11 +51,46 @@ exports.login = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find();
-    res.json({ users });
+
+    const formattedUsers = users.map(user => ({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage ? user.profileImage : null // Keep Cloudinary URL as is
+    }));
+
+    res.json({
+      success: true,
+      users: formattedUsers,
+    });
+
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage ? user.profileImage : null, // Return Cloudinary URL directly
+      },
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 // Get User by ID
 exports.getUserById = async (req, res) => {
