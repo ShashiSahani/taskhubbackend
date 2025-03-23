@@ -1,56 +1,55 @@
 const Blog = require("../../models/blogs/blogModels");
-const fs=require('fs')
-const path=require('path')
+const { cloudinary } = require("../../config/cloudinary");
+const fs = require('fs');
 
-const convertImageToBase64=(filePath)=>{
-  try {
-    const fileData=fs.readFileSync(filePath)
-    return `data:image/${path.extname(filePath).slice(1)};base64,${fileData.toString("base64")}`;
-
-    
-  } catch (error) {
-    throw new Error("Error converting image to base64")
-  }
-}
+//---------------------------
+// Utility function
+const removeTempFile = (filePath) => {
+  fs.unlink(filePath, (err) => {
+    if (err) console.log("Failed to delete local file:", err.message);
+  });
+};
+//---------------------------
 
 
-//add blogs using form-data
+//-------------------------------------------
+// ADD BLOG
 exports.createBlog = async (req, res) => {
   try {
     const { title, description, author, category, tags } = req.body;
 
     if (!title || !description || !author || !category || !tags || !req.file) {
-      return res.status(400).json({ message: "All fields are required, including category and image." });
+      return res.status(400).json({ message: "All fields including image required" });
     }
 
-    const imageBase64 = convertImageToBase64(req.file.path);
+    // Upload Image to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "blog_images",
+    });
 
     const newBlog = new Blog({
       title,
       description,
       author,
-      category, // ✅ Ensure category is being saved
-      tags: Array.isArray(tags) ? tags : tags.split(","), // ✅ Convert tags into an array if necessary
-      image: imageBase64,
+      category,
+      tags: Array.isArray(tags) ? tags : tags.split(","),
+      image: result.secure_url,
+      cloudinary_id: result.public_id,
     });
 
     await newBlog.save();
-    res.status(201).json({
-      success: true,
-      message: "Blog created successfully",
-      blog: newBlog,
-    });
+
+    // Delete local file
+    removeTempFile(req.file.path);
+
+    res.status(201).json({ success: true, message: "Blog created", blog: newBlog });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error creating Blog",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Error creating blog", error: error.message });
   }
 };
 
-
-
+//-------------------------------------------
+// GET ALL BLOGS
 exports.getAllBlogs = async (req, res) => {
   try {
     const { page = 1, limit = 5, search = "" } = req.query;
@@ -59,19 +58,16 @@ exports.getAllBlogs = async (req, res) => {
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Search Query
     const searchQuery = search
       ? { title: { $regex: search, $options: "i" } }
       : {};
 
-    // Fetch Blogs with Pagination & Search
     const blogs = await Blog.find(searchQuery)
-    .populate("author","name")
+      .populate("author", "name")
       .skip(skip)
       .limit(limitNumber)
       .sort({ createdAt: -1 });
 
-    // Count Total Blogs
     const totalBlogs = await Blog.countDocuments(searchQuery);
 
     res.status(200).json({
@@ -81,73 +77,89 @@ exports.getAllBlogs = async (req, res) => {
       blogs,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching blogs",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Error fetching blogs", error: error.message });
   }
 };
 
-
+//-------------------------------------------
+// GET BLOG BY ID
 exports.getBlogById = async (req, res) => {
   try {
-    const blog = await Blog.findById(req.params.id).populate(
-      "author",
-      "name email"
-    );
+    const blog = await Blog.findById(req.params.id).populate("author", "name email");
     if (!blog) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Blog not found" });
+      return res.status(404).json({ success: false, message: "Blog not found" });
     }
     res.status(200).json(blog);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Error fetching blog",
-        error: error.message,
-      });
+    res.status(500).json({ success: false, message: "Error fetching blog", error: error.message });
   }
 };
 
-exports.updateBlog=async(req,res)=>{
-    try {
-       const {title,description,author}=req.body;
-        let imageBase64;
-        if(req.file){
-          imageBase64=convertImageToBase64(req.file.path);
-          fs.unlinkSync(req.file.path);
-        }
-          const updatedBlog=await Blog.findByIdAndUpdate(
-            req.params.id,
-            {title,description,author,...(imageBase64 &&{image:imageBase64})},
-            {new:true}
-        )
-        if(!updatedBlog){
-            return res.status(404).json({success:false,message:"Blog not found"})
-        }
-        return res.status(200).json({success:true,message:"Blog Updated successfully",blog: updatedBlog })
+//-------------------------------------------
+// UPDATE BLOG
+exports.updateBlog = async (req, res) => {
+  try {
+    const { title, description, author, category, tags } = req.body;
+    const blog = await Blog.findById(req.params.id);
 
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Error updating blog", error: error.message });
+    if (!blog) {
+      return res.status(404).json({ success: false, message: "Blog not found" });
     }
-}
-exports.deleteBlog = async (req, res) => {
-    try {
-        const deletedBlog = await Blog.findByIdAndDelete(req.params.id);
-        if (!deletedBlog) {
-            return res.status(404).json({ success: false, message: "Blog not found" });
-        }
-        res.status(200).json({ success: true, message: "Blog deleted successfully" });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Error deleting blog", error: error.message });
+
+    // If new image uploaded
+    if (req.file) {
+      if (blog.cloudinary_id) {
+        await cloudinary.uploader.destroy(blog.cloudinary_id);
+      }
+
+      // Upload new image
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "blog_images",
+      });
+
+      blog.image = result.secure_url;
+      blog.cloudinary_id = result.public_id;
+
+      removeTempFile(req.file.path);
     }
+
+    if (title) blog.title = title;
+    if (description) blog.description = description;
+    if (author) blog.author = author;
+    if (category) blog.category = category;
+    if (tags) blog.tags = Array.isArray(tags) ? tags : tags.split(",");
+
+    await blog.save();
+
+    res.status(200).json({ success: true, message: "Blog updated", blog });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error updating blog", error: error.message });
+  }
 };
 
 
+exports.deleteBlog = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ success: false, message: "Blog not found" });
+    }
+
+    // Delete image from Cloudinary
+    if (blog.cloudinary_id) {
+      await cloudinary.uploader.destroy(blog.cloudinary_id);
+    }
+
+    await blog.deleteOne();
+
+    res.status(200).json({ success: true, message: "Blog deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error deleting blog", error: error.message });
+  }
+};
+
+//-------------------------------------------
+// REMAINING FUNCTIONS (No Change Required)
 
 exports.getSimilarBlogs = async (req, res) => {
   try {
@@ -164,6 +176,7 @@ exports.getSimilarBlogs = async (req, res) => {
     res.status(500).json({ success: false, message: "Error fetching similar blogs", error: error.message });
   }
 };
+
 exports.likeBlog = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -180,6 +193,7 @@ exports.likeBlog = async (req, res) => {
     res.status(500).json({ success: false, message: "Error liking blog", error: error.message });
   }
 };
+
 exports.dislikeBlog = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -199,7 +213,7 @@ exports.dislikeBlog = async (req, res) => {
 
 exports.addComment = async (req, res) => {
   try {
-    const blog = await Blog.findById(req.params.id); // Check if the ID exists
+    const blog = await Blog.findById(req.params.id);
     if (!blog) {
       return res.status(404).json({ success: false, message: "Blog not found!" });
     }
@@ -209,7 +223,6 @@ exports.addComment = async (req, res) => {
       return res.status(400).json({ success: false, message: "User and text are required!" });
     }
 
-    // Add comment to blog
     blog.comments.push({ user, text, createdAt: new Date() });
 
     await blog.save();
@@ -218,4 +231,3 @@ exports.addComment = async (req, res) => {
     res.status(500).json({ success: false, message: "Error adding comment", error: error.message });
   }
 };
-

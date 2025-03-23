@@ -1,8 +1,9 @@
 const User = require("../../models/user/userModel");
+const fs = require('fs');
 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const cloudinary = require("../../config/cloudinary");
+const {cloudinary} = require("../../config/cloudinary");
 
 const { token } = require("morgan");
 
@@ -47,7 +48,6 @@ exports.login = async (req, res) => {
   }
 };
 
-// Get All Users
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find();
@@ -56,7 +56,7 @@ exports.getAllUsers = async (req, res) => {
       id: user._id,
       name: user.name,
       email: user.email,
-      profileImage: user.profileImage ? user.profileImage : null // Keep Cloudinary URL as is
+      profileImage: user.profileImage ? user.profileImage : null 
     }));
 
     res.json({
@@ -82,7 +82,7 @@ exports.getUserById = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage ? user.profileImage : null, // Return Cloudinary URL directly
+        profileImage: user.profileImage ? user.profileImage : null, 
       },
     });
   } catch (err) {
@@ -92,47 +92,41 @@ exports.getUserById = async (req, res) => {
 };
 
 
-// Get User by ID
-exports.getUserById = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ user });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
 
-// Update User
 exports.updateUser = async (req, res) => {
   try {
     const { name, email } = req.body;
     const user = await User.findById(req.params.id);
+
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (name) user.name = name;
     if (email) user.email = email;
 
     if (req.file) {
-      // Delete the previous image from Cloudinary
       if (user.profileImage) {
-        const publicId = user.profileImage.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(`user_images/${publicId}`);
+        const segments = user.profileImage.split('/');
+        const fileName = segments[segments.length - 1]; 
+        const publicId = `user_images/${fileName.split('.')[0]}`;
+
+        await cloudinary.uploader.destroy(publicId);
       }
-      // Upload new image
+
       const result = await cloudinary.uploader.upload(req.file.path, { folder: 'user_images' });
       user.profileImage = result.secure_url;
-      fs.unlinkSync(req.file.path); // Remove file from server after upload
+
+      fs.unlinkSync(req.file.path);
     }
 
     await user.save();
+
     res.json({ message: 'User updated successfully', user });
+
   } catch (err) {
+    console.log(err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-
-
 
 exports.login = async (req, res) => {
   try {
