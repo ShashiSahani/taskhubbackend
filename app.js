@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+
 const cors = require('cors');
 const bodyParser = require("body-parser");
 const helmet = require("helmet");
@@ -15,6 +17,8 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
