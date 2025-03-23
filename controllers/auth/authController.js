@@ -7,10 +7,11 @@ const { token } = require("morgan");
 exports.register = async (req, res) => {
   try {
     const { name, email, password, age, expiryDate } = req.body;
-    const profileImage = req.file ? req.file.path : null; 
+    const profileImage = req.file ? req.file.path : null;
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+    if (existingUser)
+      return res.status(400).json({ message: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -25,9 +26,12 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    res.status(201).json({ message: 'User registered successfully', user });
+    res.status(201).json({
+      message: "User registered successfully",
+      user,
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Registration failed', error: err.message });
+    res.status(500).json({ message: "Registration failed", error: err.message });
   }
 };
 
@@ -56,50 +60,55 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.getAllUsers=async(req,res)=>{
+exports.getAllUsers = async (req, res) => {
   try {
-    const users=await User.find();
-    const baseUrl=`${req.protocol}://${req.get('host')}`;
+    const users = await User.find();
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    const formattedUsers=users.map(user=>({
-      id:user._id,
-      name:user.name,
-      email:user.email,
-      image:user.image ?`${baseUrl}/uploads/user/${user.image}`:null
-
+    const formattedUsers = users.map((user) => ({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage
+        ? `${baseUrl}/${user.profileImage.replace("\\", "/")}`
+        : null,
     }));
+
     res.json({
-      success:true,
-      users:formattedUsers,
-    })
+      success: true,
+      users: formattedUsers,
+    });
   } catch (error) {
-    
-    console.log(err);
+    console.log(error);
     res.status(500).json({ message: "Server error" });
   }
-}
-exports.getUserById=async(req,res)=>{
+};
+
+exports.getUserById = async (req, res) => {
   try {
-    const userId=req.params.id;
-    const user=await User.findById(userId);
-    if(!user) return res.status(404).json({message:"User not found"});
-    const baseUrl=`${req.protocol}://${req.get('host')}`;
+    const userId = req.params.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
     res.json({
-      sucess:true,
-      user:{
-        id:user._id,
+      success: true,
+      user: {
+        id: user._id,
         name: user.name,
         email: user.email,
-        image: user.image
-          ? `${baseUrl}/uploads/user/${user.image}`
+        profileImage: user.profileImage
+          ? `${baseUrl}/${user.profileImage.replace("\\", "/")}`
           : null,
       },
-    }); 
+    });
   } catch (error) {
-    console.log(err);
+    console.log(error);
     res.status(500).json({ message: "Server error" });
   }
-}
+};
+
 
 exports.changePassword = async (req, res) => {
   try {
