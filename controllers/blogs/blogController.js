@@ -5,10 +5,15 @@ const fs = require('fs');
 //---------------------------
 // Utility function
 const removeTempFile = (filePath) => {
-  fs.unlink(filePath, (err) => {
-    if (err) console.log("Failed to delete local file:", err.message);
-  });
+  if (fs.existsSync(filePath)) {
+    fs.unlink(filePath, (err) => {
+      if (err) console.log("Failed to delete local file:", err.message);
+    });
+  } else {
+    console.log("File not found, skipping deletion:", filePath);
+  }
 };
+
 //---------------------------
 
 
@@ -112,7 +117,7 @@ exports.updateBlog = async (req, res) => {
         await cloudinary.uploader.destroy(blog.cloudinary_id);
       }
 
-      // Upload new image
+      // Upload new image 
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "blog_images",
       });
