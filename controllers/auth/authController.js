@@ -1,10 +1,8 @@
 const User = require("../../models/user/userModel");
 const fs = require('fs');
-
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const {cloudinary} = require("../../config/cloudinary");
-
 const { token } = require("morgan");
 
 exports.register = async (req, res) => {
@@ -19,7 +17,6 @@ exports.register = async (req, res) => {
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, { folder: 'user_images' });
       profileImage = result.secure_url;
-      fs.unlinkSync(req.file.path); // Remove file from server after upload
     }
 
     const user = new User({ name, email, password: hashedPassword, profileImage });
@@ -41,8 +38,20 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
-    res.json({ message: 'Login successful', token, user });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        age: user.age || null,                 
+        expiryDate: user.expiryDate || null,   
+        profileImage: user.profileImage || null,
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -56,6 +65,8 @@ exports.getAllUsers = async (req, res) => {
       id: user._id,
       name: user.name,
       email: user.email,
+      age:user.age||null,
+      expiryDate: user.expiryDate || null,
       profileImage: user.profileImage ? user.profileImage : null 
     }));
 
@@ -82,7 +93,9 @@ exports.getUserById = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage ? user.profileImage : null, 
+        age:user.age||null,
+        expiryDate: user.expiryDate || null,
+        profileImage: user.profileImage ? user.profileImage : null
       },
     });
   } catch (err) {
@@ -92,21 +105,23 @@ exports.getUserById = async (req, res) => {
 };
 
 
-
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, age, expiryDate } = req.body; // Add age and expiryDate
+
     const user = await User.findById(req.params.id);
 
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (name) user.name = name;
     if (email) user.email = email;
+    if (age) user.age = age; // Update age
+    if (expiryDate) user.expiryDate = expiryDate; // Update expiryDate
 
     if (req.file) {
       if (user.profileImage) {
         const segments = user.profileImage.split('/');
-        const fileName = segments[segments.length - 1]; 
+        const fileName = segments[segments.length - 1];
         const publicId = `user_images/${fileName.split('.')[0]}`;
 
         await cloudinary.uploader.destroy(publicId);
@@ -114,13 +129,21 @@ exports.updateUser = async (req, res) => {
 
       const result = await cloudinary.uploader.upload(req.file.path, { folder: 'user_images' });
       user.profileImage = result.secure_url;
-
-      fs.unlinkSync(req.file.path);
     }
 
     await user.save();
 
-    res.json({ message: 'User updated successfully', user });
+    res.json({
+      message: 'User updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        age: user.age || null,
+        expiryDate: user.expiryDate || null,
+        profileImage: user.profileImage ? user.profileImage : null
+      },
+    });
 
   } catch (err) {
     console.log(err);
@@ -128,27 +151,7 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-exports.login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user || !bcrypt.compareSync(password, user.password))
-      return res.status(400).json({ message: "Invalid credentials" });
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
-    res.json({
-      sucess: true,
-      message: "Login successful",
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-};
+
 
 
 
